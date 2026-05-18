@@ -56,7 +56,7 @@ nav{position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1p
 .page.active{display:block;}
 
 /* HERO */
-.hero{padding:64px 48px 48px;border-bottom:1px solid var(--border);max-width:1100px;margin:0 auto;}
+.hero{padding:64px 48px 48px;border-bottom:1px solid var(--border);max-width:1100px;margin:0 auto;position:relative;z-index:1;}
 .hero-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;}
 .hero h1{font-size:40px;font-weight:300;line-height:1.15;letter-spacing:-0.02em;margin-bottom:14px;}
 .hero h1 strong{font-weight:500;}
@@ -675,8 +675,12 @@ async function analyze(){
     if(!res.ok){const e=await res.json();throw new Error(e.error?.message||`오류 ${res.status}`);}
     const data=await res.json();
     clearInterval(iv);
-    let raw=data.candidates[0].content.parts[0].text.trim();raw=raw.replace(/^```jsons*/,'').replace(/^```s*/,'').replace(/s*```$/,'').trim();const jsonMatch=raw.match(/{[sS]*}/);if(!jsonMatch) throw new Error('다시 시도해주세요.');const result=JSON.parse(jsonMatch[0]);
-    const result=JSON.parse(raw);
+    let raw=data.candidates[0].content.parts[0].text.trim();
+    const fenceMatch=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if(fenceMatch) raw=fenceMatch[1].trim();
+    const jsonStart=raw.indexOf('{'); const jsonEnd=raw.lastIndexOf('}');
+    if(jsonStart===-1||jsonEnd===-1) throw new Error('분석 결과를 읽을 수 없습니다. 다시 시도해주세요.');
+    const result=JSON.parse(raw.slice(jsonStart,jsonEnd+1));
     analysisCount++;
     if(currentUser){
       await sb.from('analyses').insert({
