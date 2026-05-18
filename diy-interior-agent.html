@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MATL — DIY 인테리어 자재 분석</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#F4F1EC; --surface:#FAFAF8; --ink:#18181A; --muted:#6E6D6A;
+  --faint:#C5C2BB; --border:#E0DCD4; --red:#C0392B; --red-bg:#F9EDEB;
+  --red-border:#E8B4AF; --overlay:rgba(24,24,26,0.55);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans KR',-apple-system,sans-serif;font-weight:400;font-size:14px;min-height:100vh;}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:200;background:var(--surface);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;padding:0 48px;gap:0;}
+.nav-logo{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;color:var(--ink);text-decoration:none;letter-spacing:-0.02em;margin-right:auto;}
+.nav-logo span{color:var(--red);}
+.nav-links{display:flex;align-items:center;gap:2px;margin-right:20px;}
+.nav-link{padding:6px 14px;font-size:13px;color:var(--muted);text-decoration:none;border-radius:4px;transition:all 0.15s;cursor:pointer;background:none;border:none;font-family:inherit;}
+.nav-link:hover{color:var(--ink);background:var(--bg);}
+.nav-link.active{color:var(--ink);font-weight:500;}
+.nav-div{width:1px;height:16px;background:var(--border);margin:0 8px;}
+.nav-auth{display:flex;align-items:center;gap:8px;}
+.btn-ghost{padding:6px 14px;font-size:13px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.btn-ghost:hover{color:var(--ink);border-color:var(--ink);}
+.btn-solid{padding:6px 14px;font-size:13px;color:var(--surface);background:var(--ink);border:1px solid var(--ink);border-radius:4px;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.btn-solid:hover{background:var(--red);border-color:var(--red);}
+.user-chip{display:flex;align-items:center;gap:8px;padding:4px 10px 4px 4px;border:1px solid var(--border);border-radius:20px;cursor:pointer;transition:all 0.15s;background:var(--surface);}
+.user-chip:hover{border-color:var(--ink);}
+.user-avatar{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--surface);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;font-family:'IBM Plex Mono',monospace;}
+.user-name{font-size:12px;color:var(--ink);font-weight:500;}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:var(--overlay);z-index:500;align-items:center;justify-content:center;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:8px;width:380px;padding:32px;position:relative;}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:4px;}
+.modal-close:hover{color:var(--ink);}
+.modal-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px;}
+.modal-tab{flex:1;padding:10px;background:none;border:none;font-family:inherit;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;}
+.modal-tab.active{color:var(--ink);font-weight:500;border-bottom-color:var(--ink);}
+.form-field{margin-bottom:16px;}
+.form-label{display:block;font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px;}
+.form-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);font-family:inherit;font-size:13px;color:var(--ink);outline:none;transition:border-color 0.15s;}
+.form-input:focus{border-color:var(--ink);}
+.form-btn{width:100%;padding:11px;background:var(--ink);color:var(--surface);border:none;border-radius:4px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:background 0.15s;margin-top:8px;}
+.form-btn:hover{background:var(--red);}
+.auth-err{display:none;background:var(--red-bg);border:1px solid var(--red-border);border-radius:4px;padding:8px 12px;margin-top:10px;font-size:12px;color:var(--red);}
+
+/* PAGES */
+.page{display:none;}
+.page.active{display:block;}
+
+/* HERO */
+.hero{padding:64px 48px 48px;border-bottom:1px solid var(--border);max-width:1100px;margin:0 auto;}
+.hero-tag{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:40px;font-weight:300;line-height:1.15;letter-spacing:-0.02em;margin-bottom:14px;}
+.hero h1 strong{font-weight:500;}
+.hero p{font-size:15px;color:var(--muted);line-height:1.7;max-width:500px;}
+
+/* MAIN GRID */
+.main-wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:400px 1fr;}
+
+/* LEFT */
+.left{border-right:1px solid var(--border);padding:36px 36px 36px 48px;}
+.sec-head{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.sec-head::after{content:'';flex:1;height:1px;background:var(--border);}
+.ctrl{margin-bottom:24px;}
+.ctrl-label{font-size:11px;color:var(--muted);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.04em;text-transform:uppercase;display:block;}
+
+/* Upload */
+.upload-zone{border:1.5px dashed var(--faint);border-radius:4px;background:var(--surface);padding:32px 16px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;}
+.upload-zone:hover{border-color:var(--red);background:var(--red-bg);}
+.upload-zone.filled{padding:0;border-style:solid;}
+.upload-zone.filled img{width:100%;height:200px;object-fit:cover;border-radius:3px;display:block;}
+.upload-zone .uovl{position:absolute;inset:0;border-radius:3px;background:var(--overlay);opacity:0;display:flex;align-items:center;justify-content:center;transition:opacity 0.2s;}
+.upload-zone.filled:hover .uovl{opacity:1;}
+.uovl span{color:#fff;font-size:12px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.06em;}
+.upload-ico{width:36px;height:36px;border-radius:50%;border:1px solid var(--faint);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;}
+.upload-txt{font-size:13px;color:var(--muted);margin-bottom:3px;}
+.upload-sub{font-size:11px;color:var(--faint);font-family:'IBM Plex Mono',monospace;}
+
+/* Space grid */
+.space-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.space-btn{border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;padding:10px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:5px;transition:all 0.15s;font-family:inherit;}
+.space-btn:hover{border-color:var(--muted);}
+.space-btn.active{border-color:var(--ink);background:var(--ink);}
+.space-btn svg{display:block;}
+.space-btn span{font-size:11px;color:var(--muted);transition:color 0.15s;}
+.space-btn.active span{color:#fff;}
+
+/* Range */
+.range-row{display:flex;align-items:center;gap:10px;}
+.range-row input[type=range]{flex:1;-webkit-appearance:none;height:2px;background:var(--border);outline:none;border-radius:0;}
+.range-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;background:var(--ink);border-radius:50%;cursor:pointer;}
+.area-val{font-family:'IBM Plex Mono',monospace;font-size:12px;min-width:100px;text-align:right;color:var(--ink);}
+
+/* Budget */
+.budget-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.bdg-btn{padding:8px 4px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;transition:all 0.15s;}
+.bdg-btn.active{border-color:var(--red);background:var(--red-bg);color:var(--red);}
+
+/* API */
+.api-inp{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink);outline:none;transition:border-color 0.15s;}
+.api-inp:focus{border-color:var(--ink);}
+.api-note{font-size:11px;color:var(--faint);font-family:'IBM Plex Mono',monospace;margin-top:5px;}
+.api-cost{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:12px 14px;margin-top:10px;}
+.api-cost p{font-size:12px;color:var(--muted);line-height:1.7;}
+.api-cost strong{color:var(--ink);font-weight:500;}
+
+/* CTA */
+.cta{width:100%;padding:13px;background:var(--ink);color:var(--surface);border:none;border-radius:4px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:background 0.2s;margin-top:4px;}
+.cta:hover:not(:disabled){background:var(--red);}
+.cta:disabled{opacity:0.35;cursor:not-allowed;}
+.err-box{background:var(--red-bg);border:1px solid var(--red-border);border-radius:4px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--red);display:none;}
+
+/* RIGHT */
+.right{padding:36px 48px 36px 40px;}
+.empty{height:440px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.empty-num{font-size:72px;font-weight:300;color:var(--faint);line-height:1;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;}
+.empty p{font-size:13px;color:var(--muted);line-height:1.7;}
+.loading{height:440px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.load-bar{width:180px;height:1px;background:var(--border);overflow:hidden;}
+.load-bar-inner{height:100%;background:var(--red);animation:loadpulse 1.8s ease-in-out infinite;}
+@keyframes loadpulse{0%{width:0%;margin-left:0}50%{width:55%;margin-left:25%}100%{width:0%;margin-left:100%}}
+.load-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:0.06em;}
+.results{display:none;}
+
+/* Results */
+.res-title{font-size:26px;font-weight:500;letter-spacing:-0.02em;margin-bottom:4px;}
+.res-sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.6;}
+.det-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:24px;}
+.det-cell{background:var(--surface);padding:12px 14px;}
+.det-key{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;}
+.det-val{font-size:13px;color:var(--ink);line-height:1.4;}
+.strat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;}
+.strat-card{border:1px solid var(--border);border-radius:4px;padding:14px 16px;background:var(--surface);}
+.strat-card.rec{border-color:var(--red);background:var(--red-bg);}
+.strat-tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;display:block;}
+.strat-card.rec .strat-tag{color:var(--red);}
+.strat-price{font-size:22px;font-weight:500;margin-bottom:4px;letter-spacing:-0.02em;}
+.strat-card.rec .strat-price{color:var(--red);}
+.strat-desc{font-size:12px;color:var(--muted);line-height:1.5;}
+.mat-table{width:100%;border-collapse:collapse;margin-bottom:24px;}
+.mat-table th{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;text-align:left;padding:8px 0;border-bottom:1px solid var(--border);}
+.mat-table td{padding:12px 0;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top;}
+.mat-table td:nth-child(1){width:34%;}
+.mat-table td:nth-child(2){width:18%;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);}
+.mat-table td:nth-child(3){width:48%;}
+.mat-name{font-weight:500;display:block;margin-bottom:2px;}
+.mat-desc{font-size:11px;color:var(--muted);}
+.buy-links{display:flex;gap:5px;flex-wrap:wrap;}
+.buy-link{display:inline-block;padding:3px 8px;border:1px solid var(--border);border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;transition:all 0.15s;background:var(--surface);}
+.buy-link:hover{border-color:var(--ink);color:var(--ink);}
+.sum-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:24px;}
+.sum-cell{background:var(--surface);padding:12px 16px;text-align:center;}
+.sum-key{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;}
+.sum-val{font-size:20px;font-weight:500;}
+.steps{margin-bottom:24px;}
+.step{display:flex;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);}
+.step:last-child{border-bottom:none;}
+.step-n{font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--faint);line-height:1;min-width:28px;margin-top:-2px;}
+.step-title{font-size:13px;font-weight:500;margin-bottom:4px;}
+.step-desc{font-size:12px;color:var(--muted);line-height:1.6;}
+.step-time{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);margin-top:3px;}
+.warn-box{border-left:2px solid var(--red);padding:10px 14px;background:var(--red-bg);border-radius:0 4px 4px 0;margin-bottom:24px;}
+.warn-box p{font-size:12px;color:var(--red);line-height:1.6;}
+.yt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:24px;}
+.yt-card{border:1px solid var(--border);border-radius:4px;overflow:hidden;background:var(--surface);text-decoration:none;display:block;transition:border-color 0.15s;}
+.yt-card:hover{border-color:var(--red);}
+.yt-thumb{width:100%;aspect-ratio:16/9;background:var(--ink);position:relative;overflow:hidden;}
+.yt-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.yt-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.yt-play-btn{width:32px;height:32px;border-radius:50%;background:rgba(192,57,43,0.88);display:flex;align-items:center;justify-content:center;}
+.yt-info{padding:8px 10px;}
+.yt-title{font-size:11px;font-weight:500;color:var(--ink);line-height:1.4;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.yt-ch{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+.sec-head{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.sec-head::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* About / Process / Mypage */
+.content-wrap{max-width:1100px;margin:0 auto;padding:64px 48px;}
+.content-wrap h2{font-size:32px;font-weight:300;margin-bottom:8px;letter-spacing:-0.02em;}
+.content-wrap .lead{font-size:15px;color:var(--muted);margin-bottom:48px;line-height:1.7;}
+.card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+.card{border:1px solid var(--border);border-radius:4px;padding:24px;background:var(--surface);}
+.card-num{font-family:'IBM Plex Mono',monospace;font-size:32px;color:var(--faint);margin-bottom:12px;line-height:1;}
+.card h3{font-size:15px;font-weight:500;margin-bottom:8px;}
+.card p{font-size:13px;color:var(--muted);line-height:1.7;}
+.proc-list{display:flex;flex-direction:column;gap:8px;}
+.proc-item{display:flex;gap:32px;align-items:flex-start;border:1px solid var(--border);border-radius:4px;padding:24px;background:var(--surface);}
+.proc-n{font-family:'IBM Plex Mono',monospace;font-size:32px;color:var(--faint);line-height:1;min-width:44px;}
+.proc-item h3{font-size:15px;font-weight:500;margin-bottom:6px;}
+.proc-item p{font-size:13px;color:var(--muted);line-height:1.7;}
+.mp-grid{display:grid;grid-template-columns:280px 1fr;gap:32px;}
+.mp-side{border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:24px;height:fit-content;}
+.mp-av{width:56px;height:56px;border-radius:50%;background:var(--ink);color:var(--surface);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:500;font-family:'IBM Plex Mono',monospace;margin-bottom:12px;}
+.mp-name-d{font-size:16px;font-weight:500;margin-bottom:2px;}
+.mp-email-d{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-bottom:20px;}
+.mp-stats{display:flex;gap:20px;margin-bottom:20px;}
+.mp-stat-n{font-size:22px;font-weight:500;}
+.mp-stat-l{font-size:11px;color:var(--muted);}
+.mp-logout{width:100%;padding:9px;border-radius:4px;border:1px solid var(--border);background:none;font-family:inherit;font-size:13px;color:var(--muted);cursor:pointer;transition:all 0.15s;}
+.mp-logout:hover{border-color:var(--red);color:var(--red);}
+.mp-main{border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:24px;}
+.mp-main h3{font-size:15px;font-weight:500;margin-bottom:16px;}
+.hist-empty{padding:40px 0;text-align:center;font-size:13px;color:var(--muted);}
+
+footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify-content:space-between;align-items:center;background:var(--surface);}
+footer span{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);letter-spacing:0.04em;}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="#" onclick="showPage('main')">MATL<span>.</span></a>
+  <div class="nav-links">
+    <button class="nav-link active" id="nl-main" onclick="showPage('main')">분석하기</button>
+    <button class="nav-link" id="nl-about" onclick="showPage('about')">About</button>
+    <button class="nav-link" id="nl-process" onclick="showPage('process')">Process</button>
+    <button class="nav-link" id="nl-mypage" onclick="goMypage()">Mypage</button>
+  </div>
+  <div class="nav-div"></div>
+  <div class="nav-auth" id="navAuth">
+    <button class="btn-ghost" onclick="openModal('login')">로그인</button>
+    <button class="btn-solid" onclick="openModal('signup')">시작하기</button>
+  </div>
+  <div class="nav-auth" id="navUser" style="display:none;">
+    <div class="user-chip" onclick="goMypage()">
+      <div class="user-avatar" id="userInitial">?</div>
+      <span class="user-name" id="userNameNav"></span>
+    </div>
+  </div>
+</nav>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-tabs">
+      <button class="modal-tab active" id="tabLogin" onclick="switchTab('login')">로그인</button>
+      <button class="modal-tab" id="tabSignup" onclick="switchTab('signup')">회원가입</button>
+    </div>
+    <div id="fLogin">
+      <div class="form-field"><label class="form-label">이메일</label><input type="email" class="form-input" id="lEmail" placeholder="you@email.com"></div>
+      <div class="form-field"><label class="form-label">비밀번호</label><input type="password" class="form-input" id="lPw" placeholder="••••••••"></div>
+      <button class="form-btn" onclick="doLogin()">로그인 →</button>
+      <div class="auth-err" id="lErr"></div>
+    </div>
+    <div id="fSignup" style="display:none;">
+      <div class="form-field"><label class="form-label">이름</label><input type="text" class="form-input" id="sName" placeholder="홍길동"></div>
+      <div class="form-field"><label class="form-label">이메일</label><input type="email" class="form-input" id="sEmail" placeholder="you@email.com"></div>
+      <div class="form-field"><label class="form-label">비밀번호</label><input type="password" class="form-input" id="sPw" placeholder="8자 이상"></div>
+      <button class="form-btn" onclick="doSignup()">가입하고 시작하기 →</button>
+      <div class="auth-err" id="sErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="page active" id="page-main">
+  <div class="hero">
+    <p class="hero-tag">Image to Materials</p>
+    <h1>원하는 공간을<br><strong>직접 만드세요</strong></h1>
+    <p>레퍼런스 이미지를 올리면 자재를 분석하고,<br>국내 구매처와 시공 가이드를 제공합니다.</p>
+  </div>
+  <div class="main-wrap">
+    <div class="left">
+      <div class="sec-head">01 — API 설정</div>
+      <div class="ctrl">
+        <input type="password" class="api-inp" id="apiKey" placeholder="sk-ant-api03-...">
+        <p class="api-note">키는 브라우저에서만 사용됩니다</p>
+        <div class="api-cost"><p>건당 약 <strong>5~10원</strong> · Claude Sonnet 4<br>발급 → <strong>console.anthropic.com</strong></p></div>
+      </div>
+
+      <div class="sec-head">02 — 레퍼런스 이미지</div>
+      <div class="ctrl">
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <div class="upload-ico">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <p class="upload-txt">이미지 업로드</p>
+          <p class="upload-sub">JPG / PNG — 클릭 또는 드래그</p>
+          <div class="uovl"><span>이미지 변경</span></div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
+      </div>
+
+      <div class="sec-head">03 — 공간 설정</div>
+      <div class="ctrl">
+        <span class="ctrl-label">공간 종류</span>
+        <div class="space-grid" id="spaceGrid">
+          <button class="space-btn active" onclick="selectSpace(this,'욕실')" data-space="욕실">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16v4a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-4z"/><path d="M6 12V6a2 2 0 0 1 2-2h1a1 1 0 0 1 1 1v1"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+            <span>욕실</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'부엌')" data-space="부엌">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="5" rx="1"/><path d="M3 8v13h18V8"/><line x1="8" y1="8" x2="8" y2="21"/><line x1="16" y1="8" x2="16" y2="21"/><circle cx="12" cy="14" r="1.5"/></svg>
+            <span>부엌</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'거실')" data-space="거실">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="20" height="11" rx="2"/><path d="M2 14h20"/><path d="M6 9V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>
+            <span>거실</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'침실')" data-space="침실">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20v-8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8"/><path d="M3 14h18"/><rect x="6" y="5" width="4" height="5" rx="1"/></svg>
+            <span>침실</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'현관')" data-space="현관">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><circle cx="14.5" cy="12" r="0.8" fill="#6E6D6A" stroke="none"/></svg>
+            <span>현관</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'서재')" data-space="서재">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+            <span>서재</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'드레스룸')" data-space="드레스룸">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="6" y1="8" x2="9" y2="8"/><line x1="15" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="18" y2="12"/></svg>
+            <span>드레스룸</span>
+          </button>
+          <button class="space-btn" onclick="selectSpace(this,'테라스')" data-space="테라스">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6E6D6A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 11l9-8 9 8"/><path d="M9 21V15h6v6"/></svg>
+            <span>테라스</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <span class="ctrl-label">면적</span>
+        <div class="range-row">
+          <input type="range" min="1" max="30" value="5" step="0.5" oninput="updateArea(this.value)">
+          <span class="area-val" id="areaVal">5㎡ · 1.5평</span>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <span class="ctrl-label">예산</span>
+        <div class="budget-row">
+          <button class="bdg-btn" onclick="selectBudget(this,'30만원 이하')">~30만</button>
+          <button class="bdg-btn active" onclick="selectBudget(this,'30~100만원')">30~100만</button>
+          <button class="bdg-btn" onclick="selectBudget(this,'100만원 이상')">100만+</button>
+        </div>
+      </div>
+
+      <div class="err-box" id="errBox"></div>
+      <button class="cta" id="analyzeBtn" onclick="analyze()">자재 분석 시작 →</button>
+    </div>
+
+    <div class="right">
+      <div class="empty" id="emptyState">
+        <div class="empty-num">①</div>
+        <p>이미지를 올리고 공간 정보를 입력한 뒤<br>분석을 시작하세요</p>
+      </div>
+      <div class="loading" id="loadingState">
+        <div class="load-bar"><div class="load-bar-inner"></div></div>
+        <p class="load-label" id="loadLabel">이미지 분석 중...</p>
+      </div>
+      <div class="results" id="results"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<div class="page" id="page-about">
+  <div class="content-wrap">
+    <h2>About MATL</h2>
+    <p class="lead">MATL은 인테리어 레퍼런스 이미지를 분석해 자재를 추천하고,<br>국내 구매처와 셀프 시공 가이드를 한번에 제공하는 AI 자재 분석 서비스입니다.</p>
+    <div class="card-grid">
+      <div class="card"><div class="card-num">01</div><h3>Image Analysis</h3><p>레퍼런스 이미지에서 타일 종류, 색상, 질감, 줄눈 패턴 등을 자동으로 인식합니다.</p></div>
+      <div class="card"><div class="card-num">02</div><h3>Material Matching</h3><p>국내에서 구매 가능한 가장 유사한 자재를 가격대별로 추천하고 구매 링크를 제공합니다.</p></div>
+      <div class="card"><div class="card-num">03</div><h3>DIY Guide</h3><p>초보자도 따라할 수 있는 단계별 시공 가이드와 유튜브 영상을 함께 제공합니다.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESS -->
+<div class="page" id="page-process">
+  <div class="content-wrap">
+    <h2>How it works</h2>
+    <p class="lead">이미지 한 장으로 시작해서 실제 시공까지, 네 단계로 진행됩니다.</p>
+    <div class="proc-list">
+      <div class="proc-item"><div class="proc-n">01</div><div><h3>이미지 업로드</h3><p>원하는 인테리어 스타일의 레퍼런스 사진을 올립니다. Pinterest, Instagram, 매거진 스크랩 등 어떤 이미지든 가능합니다.</p></div></div>
+      <div class="proc-item"><div class="proc-n">02</div><div><h3>AI 자재 분석</h3><p>Claude AI가 이미지에서 타일 종류, 크기, 색상, 줄눈 패턴, 마감재 질감 등을 자동으로 읽어냅니다. 공간 면적과 예산을 함께 고려해 최적 전략을 제안합니다.</p></div></div>
+      <div class="proc-item"><div class="proc-n">03</div><div><h3>자재 추천 + 구매</h3><p>국내에서 구매 가능한 유사 자재를 추천하고, 쿠팡·네이버쇼핑·오늘의집 링크를 바로 제공합니다. 필요 수량과 예상 비용도 자동 계산됩니다.</p></div></div>
+      <div class="proc-item"><div class="proc-n">04</div><div><h3>시공 가이드</h3><p>단계별 설치 순서, 주의사항, 관련 유튜브 영상까지 함께 제공합니다. 초보자 기준으로 설명합니다.</p></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MYPAGE -->
+<div class="page" id="page-mypage">
+  <div class="content-wrap">
+    <h2>Mypage</h2>
+    <div class="mp-grid">
+      <div class="mp-side">
+        <div class="mp-av" id="mpAv">?</div>
+        <div class="mp-name-d" id="mpNameD"></div>
+        <div class="mp-email-d" id="mpEmailD"></div>
+        <div class="mp-stats">
+          <div><div class="mp-stat-n" id="mpCount">0</div><div class="mp-stat-l">분석 횟수</div></div>
+        </div>
+        <button class="mp-logout" onclick="doLogout()">로그아웃</button>
+      </div>
+      <div class="mp-main">
+        <h3>분석 기록</h3>
+        <div class="hist-empty" id="histList"><p>아직 분석 기록이 없습니다.<br>이미지를 올려 첫 분석을 시작해보세요.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>MATL — DIY 인테리어 자재 분석 · Beta</span>
+  <span>Powered by Claude API · Anthropic</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ─── SUPABASE CONFIG ───
+const SUPA_URL = 'https://fzymvopfrxjhvpagzjkr.supabase.co';
+const SUPA_KEY = 'sb_publishable_uPiuY1RWzjbJLgpPQBFf2w_cYeHR4g8';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let selectedSpace='욕실', selectedBudget='30~100만원';
+let imageBase64=null, imageMediaType='image/jpeg';
+let currentUser=null;
+let analysisCount=0;
+const LOADS=['이미지 분석 중...','자재 매칭 중...','가격 정보 수집 중...','가이드 생성 중...'];
+
+// 세션 복원
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session){
+    currentUser={id:session.user.id, email:session.user.email, name:session.user.user_metadata?.name||session.user.email.split('@')[0]};
+    updateNavUser();
+    loadAnalysisCount();
+  }
+});
+
+// 세션 변화 감지
+sb.auth.onAuthStateChange((_,session)=>{
+  if(session){
+    currentUser={id:session.user.id, email:session.user.email, name:session.user.user_metadata?.name||session.user.email.split('@')[0]};
+    updateNavUser();
+    loadAnalysisCount();
+  } else {
+    currentUser=null;
+    document.getElementById('navAuth').style.display='flex';
+    document.getElementById('navUser').style.display='none';
+  }
+});
+
+async function loadAnalysisCount(){
+  if(!currentUser) return;
+  const {count}=await sb.from('analyses').select('*',{count:'exact',head:true}).eq('user_id',currentUser.id);
+  analysisCount=count||0;
+}
+
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+  const nl=document.getElementById('nl-'+id);
+  if(nl) nl.classList.add('active');
+  if(id==='mypage') renderMypage();
+}
+
+function goMypage(){
+  if(!currentUser){openModal('login');return;}
+  showPage('mypage');
+}
+
+function openModal(tab){
+  document.getElementById('modalBg').classList.add('open');
+  switchTab(tab);
+}
+function closeModal(){document.getElementById('modalBg').classList.remove('open');}
+document.getElementById('modalBg').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+function switchTab(tab){
+  document.getElementById('fLogin').style.display=tab==='login'?'block':'none';
+  document.getElementById('fSignup').style.display=tab==='signup'?'block':'none';
+  document.getElementById('tabLogin').classList.toggle('active',tab==='login');
+  document.getElementById('tabSignup').classList.toggle('active',tab==='signup');
+}
+
+async function doLogin(){
+  const email=document.getElementById('lEmail').value.trim();
+  const pw=document.getElementById('lPw').value;
+  document.getElementById('lErr').style.display='none';
+  if(!email||!pw){showAE('lErr','이메일과 비밀번호를 입력해주세요.');return;}
+  const btn=document.querySelector('#fLogin .form-btn');
+  btn.textContent='로그인 중...'; btn.disabled=true;
+  const {error}=await sb.auth.signInWithPassword({email,password:pw});
+  btn.textContent='로그인 →'; btn.disabled=false;
+  if(error){showAE('lErr',error.message==='Invalid login credentials'?'이메일 또는 비밀번호가 맞지 않습니다.':error.message);return;}
+  closeModal();
+}
+
+async function doSignup(){
+  const name=document.getElementById('sName').value.trim();
+  const email=document.getElementById('sEmail').value.trim();
+  const pw=document.getElementById('sPw').value;
+  document.getElementById('sErr').style.display='none';
+  if(!name||!email||!pw){showAE('sErr','모든 항목을 입력해주세요.');return;}
+  if(pw.length<8){showAE('sErr','비밀번호는 8자 이상이어야 합니다.');return;}
+  const btn=document.querySelector('#fSignup .form-btn');
+  btn.textContent='가입 중...'; btn.disabled=true;
+  const {error}=await sb.auth.signUp({email,password:pw,options:{data:{name}}});
+  btn.textContent='가입하고 시작하기 →'; btn.disabled=false;
+  if(error){showAE('sErr',error.message);return;}
+  closeModal();
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser=null; analysisCount=0;
+  document.getElementById('navAuth').style.display='flex';
+  document.getElementById('navUser').style.display='none';
+  showPage('main');
+}
+
+function updateNavUser(){
+  document.getElementById('navAuth').style.display='none';
+  document.getElementById('navUser').style.display='flex';
+  const i=currentUser.name?currentUser.name[0].toUpperCase():'?';
+  document.getElementById('userInitial').textContent=i;
+  document.getElementById('userNameNav').textContent=currentUser.name;
+}
+
+function showAE(id,msg){const el=document.getElementById(id);el.textContent=msg;el.style.display='block';}
+
+async function renderMypage(){
+  if(!currentUser)return;
+  const i=currentUser.name[0].toUpperCase();
+  document.getElementById('mpAv').textContent=i;
+  document.getElementById('mpNameD').textContent=currentUser.name;
+  document.getElementById('mpEmailD').textContent=currentUser.email;
+
+  const {data,count}=await sb.from('analyses').select('*',{count:'exact'}).eq('user_id',currentUser.id).order('created_at',{ascending:false}).limit(10);
+  analysisCount=count||0;
+  document.getElementById('mpCount').textContent=analysisCount;
+
+  const hist=document.getElementById('histList');
+  if(!data||data.length===0){
+    hist.innerHTML='<p>아직 분석 기록이 없습니다.<br>이미지를 올려 첫 분석을 시작해보세요.</p>';
+    return;
+  }
+  hist.innerHTML=data.map(a=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:500;">${a.result?.title||'분석 결과'}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:'IBM Plex Mono',monospace;">${a.space} · ${a.area} · ${new Date(a.created_at).toLocaleDateString('ko-KR')}</div>
+      </div>
+      <span style="font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;">${a.budget}</span>
+    </div>
+  `).join('');
+}
+
+function selectSpace(el,val){
+  selectedSpace=val;
+  document.querySelectorAll('.space-btn').forEach(b=>{
+    b.classList.remove('active');
+    b.querySelector('svg').setAttribute('stroke','#6E6D6A');
+    const dot=b.querySelector('circle[fill="#6E6D6A"]');
+    if(dot) dot.setAttribute('fill','#6E6D6A');
+  });
+  el.classList.add('active');
+  el.querySelector('svg').setAttribute('stroke','white');
+  const dot=el.querySelector('circle[fill="#6E6D6A"]');
+  if(dot) dot.setAttribute('fill','white');
+}
+
+function selectBudget(el,val){
+  selectedBudget=val;
+  document.querySelectorAll('.bdg-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function updateArea(val){
+  const sqm=parseFloat(val);
+  const py=(sqm/3.305785).toFixed(1);
+  document.getElementById('areaVal').textContent=`${sqm}㎡ · ${py}평`;
+}
+
+function handleFile(e){
+  const file=e.target.files[0]; if(!file) return;
+  imageMediaType=file.type||'image/jpeg';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    imageBase64=ev.target.result.split(',')[1];
+    const zone=document.getElementById('uploadZone');
+    zone.innerHTML=`<img src="${ev.target.result}" alt="레퍼런스"><div class="uovl" onclick="document.getElementById('fileInput').click()"><span>이미지 변경</span></div>`;
+    zone.classList.add('filled');
+  };
+  reader.readAsDataURL(file);
+}
+
+const uz=document.getElementById('uploadZone');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.borderColor='var(--red)';});
+uz.addEventListener('dragleave',()=>{uz.style.borderColor='';});
+uz.addEventListener('drop',e=>{
+  e.preventDefault(); uz.style.borderColor='';
+  const f=e.dataTransfer.files[0];
+  if(f&&f.type.startsWith('image/')){
+    const dt=new DataTransfer(); dt.items.add(f);
+    document.getElementById('fileInput').files=dt.files;
+    handleFile({target:{files:[f]}});
+  }
+});
+
+async function analyze(){
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const areaText=document.getElementById('areaVal').textContent;
+  const errBox=document.getElementById('errBox');
+  errBox.style.display='none';
+  if(!apiKey){errBox.textContent='API 키를 입력해주세요.';errBox.style.display='block';return;}
+  if(!imageBase64){errBox.textContent='이미지를 업로드해주세요.';errBox.style.display='block';return;}
+
+  document.getElementById('emptyState').style.display='none';
+  document.getElementById('results').style.display='none';
+  const ls=document.getElementById('loadingState');
+  ls.style.display='flex';
+  document.getElementById('analyzeBtn').disabled=true;
+
+  let si=0;
+  const ll=document.getElementById('loadLabel');
+  const iv=setInterval(()=>{si=(si+1)%LOADS.length;ll.textContent=LOADS[si];},1800);
+
+  const prompt=`한국 DIY 인테리어 전문가입니다. 이미지를 분석하고 아래 JSON 형식으로만 응답하세요 (다른 텍스트 없이).
+조건: 공간=${selectedSpace}, 면적=${areaText}, 예산=${selectedBudget}
+
+{
+  "title":"분석 제목",
+  "subtitle":"한 줄 요약",
+  "detected":[{"label":"라벨","value":"값"},{"label":"라벨","value":"값"},{"label":"라벨","value":"값"}],
+  "strategies":[
+    {"tag":"추천","recommended":true,"price":"가격","title":"방법","desc":"설명"},
+    {"tag":"풀시공","recommended":false,"price":"가격","title":"방법","desc":"설명"}
+  ],
+  "materials":[
+    {"name":"자재명","desc":"설명","price":"가격","links":[
+      {"label":"쿠팡","url":"https://www.coupang.com/np/search?q=검색어"},
+      {"label":"네이버쇼핑","url":"https://search.shopping.naver.com/search/all?query=검색어"},
+      {"label":"오늘의집","url":"https://ohou.se/searches/product?query=검색어"}
+    ]}
+  ],
+  "steps":[{"title":"단계","desc":"설명","time":"시간"}],
+  "warning":"주의사항",
+  "youtube":[
+    {"title":"영상제목","channel":"채널","videoId":"abc123","searchQuery":"검색어"},
+    {"title":"영상제목","channel":"채널","videoId":"def456","searchQuery":"검색어"},
+    {"title":"영상제목","channel":"채널","videoId":"ghi789","searchQuery":"검색어"}
+  ],
+  "summary":{"cost":"가격","time":"시간","difficulty":"★★★☆☆"}
+}
+
+링크 url의 검색어는 실제 상품명으로 구체적으로 작성하세요.`;
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:2500,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:imageMediaType,data:imageBase64}},
+          {type:'text',text:prompt}
+        ]}]
+      })
+    });
+    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||`오류 ${res.status}`);}
+    const data=await res.json();
+    clearInterval(iv);
+    const raw=data.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const result=JSON.parse(raw);
+    analysisCount++;
+    if(currentUser){
+      await sb.from('analyses').insert({
+        user_id: currentUser.id,
+        space: selectedSpace,
+        area: areaText,
+        budget: selectedBudget,
+        result: result
+      });
+    }
+    renderResults(result);
+  }catch(e){
+    clearInterval(iv);
+    ls.style.display='none';
+    document.getElementById('emptyState').style.display='flex';
+    document.getElementById('analyzeBtn').disabled=false;
+    errBox.textContent=e.message||'오류가 발생했습니다.';
+    errBox.style.display='block';
+  }
+}
+
+function renderResults(d){
+  document.getElementById('loadingState').style.display='none';
+  document.getElementById('analyzeBtn').disabled=false;
+
+  const detH=d.detected.map(i=>`<div class="det-cell"><div class="det-key">${i.label}</div><div class="det-val">${i.value}</div></div>`).join('');
+  const strH=d.strategies.map(s=>`<div class="strat-card ${s.recommended?'rec':''}"><span class="strat-tag">${s.tag}</span><div class="strat-price">${s.price}</div><div style="font-size:13px;font-weight:500;margin-bottom:4px;">${s.title}</div><div class="strat-desc">${s.desc}</div></div>`).join('');
+  const matH=d.materials.map(m=>`<tr><td><span class="mat-name">${m.name}</span><span class="mat-desc">${m.desc}</span></td><td>${m.price}</td><td><div class="buy-links">${m.links.map(l=>`<a class="buy-link" href="${l.url}" target="_blank" rel="noopener">${l.label} ↗</a>`).join('')}</div></td></tr>`).join('');
+  const stepH=d.steps.map((s,i)=>`<div class="step"><div class="step-n">${String(i+1).padStart(2,'0')}</div><div><div class="step-title">${s.title}</div><div class="step-desc">${s.desc}</div>${s.time?`<div class="step-time">${s.time}</div>`:''}</div></div>`).join('');
+  const ytH=d.youtube.map(v=>{
+    const url=`https://www.youtube.com/results?search_query=${encodeURIComponent(v.searchQuery)}`;
+    const thumb=`https://img.youtube.com/vi/${v.videoId}/mqdefault.jpg`;
+    return `<a class="yt-card" href="${url}" target="_blank" rel="noopener"><div class="yt-thumb"><img src="${thumb}" alt="${v.title}" onerror="this.style.display='none'"><div class="yt-play"><div class="yt-play-btn"><svg width="10" height="12" viewBox="0 0 10 12" fill="white"><path d="M1 1l8 5-8 5V1z"/></svg></div></div></div><div class="yt-info"><div class="yt-title">${v.title}</div><div class="yt-ch">${v.channel}</div></div></a>`;
+  }).join('');
+
+  document.getElementById('results').innerHTML=`
+    <div class="sec-head">분석 결과</div>
+    <div class="res-title">${d.title}</div>
+    <div class="res-sub">${d.subtitle}</div>
+    <div class="sec-head">이미지에서 읽은 것</div>
+    <div class="det-grid">${detH}</div>
+    <div class="sec-head">전략</div>
+    <div class="strat-grid">${strH}</div>
+    <div class="sec-head">요약</div>
+    <div class="sum-bar">
+      <div class="sum-cell"><div class="sum-key">예상 비용</div><div class="sum-val">${d.summary.cost}</div></div>
+      <div class="sum-cell"><div class="sum-key">소요 시간</div><div class="sum-val">${d.summary.time}</div></div>
+      <div class="sum-cell"><div class="sum-key">난이도</div><div class="sum-val" style="font-size:16px;">${d.summary.difficulty}</div></div>
+    </div>
+    <div class="sec-head">자재 목록 + 구매처</div>
+    <table class="mat-table"><thead><tr><th>자재</th><th>가격</th><th>구매처</th></tr></thead><tbody>${matH}</tbody></table>
+    <div class="sec-head">시공 순서</div>
+    <div class="steps">${stepH}</div>
+    <div class="warn-box"><p>⚠ ${d.warning}</p></div>
+    <div class="sec-head">유튜브 시공 가이드</div>
+    <div class="yt-grid">${ytH}</div>
+  `;
+  document.getElementById('results').style.display='block';
+}
+</script>
+</body>
+</html>
