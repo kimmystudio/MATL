@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -271,9 +272,9 @@ footer span{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--fai
     <div class="left">
       <div class="sec-head">01 — API 설정</div>
       <div class="ctrl">
-        <input type="password" class="api-inp" id="apiKey" placeholder="sk-ant-api03-...">
-        <p class="api-note">키는 브라우저에서만 사용됩니다</p>
-        <div class="api-cost"><p>건당 약 <strong>5~10원</strong> · Claude Sonnet 4<br>발급 → <strong>console.anthropic.com</strong></p></div>
+        <input type="password" class="api-inp" id="apiKey" placeholder="AIzaSy...">
+        <p class="api-note">Gemini API 키 · 브라우저에서만 사용됩니다</p>
+        <div class="api-cost"><p>무료 · Gemini 1.5 Flash<br>발급 → <strong>aistudio.google.com</strong></p></div>
       </div>
 
       <div class="sec-head">02 — 레퍼런스 이미지</div>
@@ -660,22 +661,21 @@ async function analyze(){
 링크 url의 검색어는 실제 상품명으로 구체적으로 작성하세요.`;
 
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:2500,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:imageMediaType,data:imageBase64}},
-          {type:'text',text:prompt}
-        ]}]
+        contents:[{parts:[
+          {inline_data:{mime_type:imageMediaType,data:imageBase64}},
+          {text:prompt}
+        ]}],
+        generationConfig:{temperature:0.3,maxOutputTokens:2500}
       })
     });
     if(!res.ok){const e=await res.json();throw new Error(e.error?.message||`오류 ${res.status}`);}
     const data=await res.json();
     clearInterval(iv);
-    const raw=data.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const raw=data.candidates[0].content.parts[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const result=JSON.parse(raw);
     analysisCount++;
     if(currentUser){
