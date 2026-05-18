@@ -121,11 +121,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 .empty h3{font-family:'IBM Plex Sans KR',sans-serif;font-size:18px;font-weight:600;margin-bottom:8px;}
 .empty p{font-size:14px;color:var(--muted);line-height:1.75;}
-.loading{padding:60px 20px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+.loading{padding:48px 20px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
 @media(min-width:900px){.loading{min-height:520px;}}
-.load-ring{width:48px;height:48px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.9s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.load-label{font-size:14px;color:var(--muted);font-weight:500;}
+.load-house-wrap{position:relative;width:80px;height:80px;}
+.load-house-svg{position:absolute;inset:0;z-index:2;}
+.load-water{position:absolute;bottom:8px;left:10px;right:10px;height:0%;background:linear-gradient(to top,var(--blue),var(--blue-mid));border-radius:0 0 4px 4px;transition:height 0.4s ease;z-index:1;opacity:0.5;}
+.load-pct{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--blue);}
+.load-bar-wrap{width:240px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.load-bar-fill{height:100%;width:0%;background:var(--blue);border-radius:2px;transition:width 0.4s ease;}
+.load-label{font-size:13px;color:var(--muted);font-weight:500;text-align:center;}
 .results{display:none;}
 .res-title{font-family:'IBM Plex Sans KR',sans-serif;font-size:24px;font-weight:600;letter-spacing:-0.02em;margin-bottom:6px;}
 @media(min-width:768px){.res-title{font-size:28px;}}
@@ -189,6 +193,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;heigh
 .steps{margin-bottom:24px;}
 .step{padding:18px 0;border-bottom:1px solid var(--border);}
 .step:last-child{border-bottom:none;}
+.step-illustration{background:var(--blue-light);border-radius:var(--r-sm);padding:16px 20px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;}
+.step-illustration svg{max-width:100%;height:auto;max-height:80px;}
 .step-top{display:flex;gap:14px;margin-bottom:10px;}
 .step-n{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;flex-shrink:0;}
 .step-title{font-size:14px;font-weight:600;margin-bottom:3px;}
@@ -464,7 +470,15 @@ footer{border-top:1px solid var(--border);padding:32px 24px;background:var(--sur
         <p>원하는 인테리어 이미지를 올리고<br>공간 정보를 입력하면<br>자재부터 시공 가이드까지 알려드려요</p>
       </div>
       <div class="loading" id="loadingState">
-        <div class="load-ring"></div>
+        <div class="load-house-wrap">
+          <svg class="load-house-svg" width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 35L40 10L70 35V68C70 69.1 69.1 70 68 70H52V52H28V70H12C10.9 70 10 69.1 10 68V35Z" stroke="var(--blue)" stroke-width="3" stroke-linejoin="round" fill="white"/>
+            <path d="M28 70V52H52V70" stroke="var(--blue)" stroke-width="3" stroke-linejoin="round"/>
+          </svg>
+          <div class="load-water" id="loadWater"></div>
+        </div>
+        <div class="load-pct" id="loadPct">0%</div>
+        <div class="load-bar-wrap"><div class="load-bar-fill" id="loadBarFill"></div></div>
         <p class="load-label" id="loadLabel">이미지 분석 중...</p>
       </div>
       <div class="results" id="results"></div>
@@ -590,6 +604,19 @@ let adminApiKey='';
 const LOADS=['이미지 분석 중...','자재·가구 구분 중...','최저가 검색 중...','가이드 생성 중...'];
 
 sb.auth.getSession().then(({data:{session}})=>{if(session)handleSession(session);});loadApiKey();
+// URL 공유 링크 처리
+(async()=>{
+  const rp=new URLSearchParams(location.search).get('report');
+  if(rp){
+    await new Promise(r=>setTimeout(r,1200));
+    const{data}=await sb.from('analyses').select('*').eq('id',rp).single();
+    if(data){
+      lastResult=data.result;lastAnalysisId=rp;
+      document.getElementById('emptyState').style.display='none';
+      renderResults(data.result,'',rp);
+    }
+  }
+})();
 sb.auth.onAuthStateChange((_,session)=>{if(session)handleSession(session);else{currentUser=null;updateUI();}});
 
 function handleSession(s){
@@ -707,10 +734,35 @@ async function analyze(){
   document.getElementById('results').style.display='none';
   const ls=document.getElementById('loadingState');ls.style.display='flex';
   document.getElementById('analyzeBtn').disabled=true;
-  let si=0;const ll=document.getElementById('loadLabel');
-  const iv=setInterval(()=>{si=(si+1)%LOADS.length;ll.textContent=LOADS[si];},1800);
+  // 진행률 애니메이션
+  let pct=0;
+  const stages=[
+    {end:20,label:'이미지 업로드 중...'},
+    {end:45,label:'자재·가구 분석 중...'},
+    {end:70,label:'최저가 검색 중...'},
+    {end:88,label:'시공 가이드 생성 중...'},
+    {end:95,label:'인포그래픽 생성 중...'}
+  ];
+  let stageIdx=0;
+  const updatePct=(val)=>{
+    pct=val;
+    document.getElementById('loadPct').textContent=Math.round(pct)+'%';
+    document.getElementById('loadBarFill').style.width=pct+'%';
+    // 집 높이 = bottom 8px ~ 58px 사이, house 내부 height 약 48px
+    const waterH=Math.round(pct*0.48)+'%';
+    document.getElementById('loadWater').style.height=waterH;
+  };
+  const iv=setInterval(()=>{
+    const stage=stages[stageIdx];
+    if(!stage){return;}
+    document.getElementById('loadLabel').textContent=stage.label;
+    if(pct<stage.end-1){pct+=0.8;updatePct(Math.min(pct,stage.end-1));}
+    else{stageIdx=Math.min(stageIdx+1,stages.length-1);}
+  },100);
   const areaText=document.getElementById('areaVal').textContent;
-  const prompt='당신은 한국 DIY 인테리어 전문가입니다. 이미지를 분석하고 아래 JSON 형식으로만 응답하세요.\n조건: 공간='+selectedSpace+', 면적='+areaText+', 예산='+selectedBudget+'\n\n중요: 자재(고정)와 가구/소품(이동가능)을 반드시 구분하세요.\n\n{"title":"분석 제목","subtitle":"한 줄 요약","pins":[{"id":1,"x":30,"y":40,"type":"material","name":"자재명","desc":"설명","links":[{"store":"쿠팡","url":"https://www.coupang.com/np/search?q=검색어","price":"가격"},{"store":"네이버쇼핑","url":"https://search.shopping.naver.com/search/all?query=검색어","price":"가격"},{"store":"오늘의집","url":"https://ohou.se/searches/product?query=검색어","price":"가격"}]},{"id":2,"x":60,"y":70,"type":"furniture","name":"가구명","desc":"설명","links":[{"store":"쿠팡","url":"https://www.coupang.com/np/search?q=검색어","price":"가격"},{"store":"네이버쇼핑","url":"https://search.shopping.naver.com/search/all?query=검색어","price":"가격"},{"store":"오늘의집","url":"https://ohou.se/searches/product?query=검색어","price":"가격"}]}],"strategies":[{"tag":"추천","recommended":true,"price":"가격","title":"방법","desc":"설명"},{"tag":"풀시공","recommended":false,"price":"가격","title":"방법","desc":"설명"}],"steps":[{"title":"단계","desc":"3~4문장 상세 설명","time":"시간","cautions":["주의1"],"tips":["팁1"]}],"warning":"주의사항","youtube":[{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"},{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"},{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"}],"summary":{"cost":"비용","time":"시간","difficulty":"★★★☆☆"}}\n\npins x,y는 이미지 내 위치 퍼센트(0~100). 자재 3~5개, 가구 2~3개. links 가격 낮은 순 정렬. steps 4~6개.';
+  const prompt='당신은 한국 DIY 인테리어 전문가입니다. 이미지를 분석하고 아래 JSON 형식으로만 응답하세요.\n조건: 공간='+selectedSpace+', 면적='+areaText+', 예산='+selectedBudget+'\n\n중요: 자재(고정)와 가구/소품(이동가능)을 반드시 구분하세요.\n\n{"title":"분석 제목","subtitle":"한 줄 요약","pins":[{"id":1,"x":30,"y":40,"type":"material","name":"자재명","desc":"설명","links":[{"store":"쿠팡","url":"https://www.coupang.com/np/search?q=검색어","price":"가격"},{"store":"네이버쇼핑","url":"https://search.shopping.naver.com/search/all?query=검색어","price":"가격"},{"store":"오늘의집","url":"https://ohou.se/searches/product?query=검색어","price":"가격"}]},{"id":2,"x":60,"y":70,"type":"furniture","name":"가구명","desc":"설명","links":[{"store":"쿠팡","url":"https://www.coupang.com/np/search?q=검색어","price":"가격"},{"store":"네이버쇼핑","url":"https://search.shopping.naver.com/search/all?query=검색어","price":"가격"},{"store":"오늘의집","url":"https://ohou.se/searches/product?query=검색어","price":"가격"}]}],"strategies":[{"tag":"추천","recommended":true,"price":"가격","title":"방법","desc":"설명"},{"tag":"풀시공","recommended":false,"price":"가격","title":"방법","desc":"설명"}],"steps":[{"title":"단계","desc":"3~4문장 상세 설명","time":"시간","cautions":["주의1"],"tips":["팁1"],"svg":"<svg viewBox=\"0 0 120 80\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"100\" height=\"60\" rx=\"4\" fill=\"none\" stroke=\"#1B4F8A\" stroke-width=\"1.5\"/></svg>"}],"warning":"주의사항","youtube":[{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"},{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"},{"title":"제목","channel":"채널","videoId":"id","searchQuery":"검색어"}],"summary":{"cost":"비용","time":"시간","difficulty":"★★★☆☆"}}\n\npins x,y는 이미지 내 위치 퍼센트(0~100). 자재 3~5개, 가구 2~3개. links 가격 낮은 순 정렬. steps 4~6개.
+
+중요: 각 step의 svg 필드에 해당 시공 단계를 묘사하는 심플한 라인 SVG를 생성하세요. viewBox="0 0 120 80", fill=none, stroke=#1B4F8A, stroke-width=1.5, stroke-linecap=round. 최대한 직관적인 라인 일러스트로 단계를 표현하세요. 복잡하지 않게 핵심 동작만 표현.';
   try{
     const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+apiKey,{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -718,6 +770,8 @@ async function analyze(){
     });
     if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'오류 '+res.status);}
     const data=await res.json();clearInterval(iv);
+    updatePct(100);document.getElementById('loadLabel').textContent='분석 완료!';
+    await new Promise(r=>setTimeout(r,600));
     let raw=data.candidates[0].content.parts[0].text.trim();
     const fm=raw.match(/```(?:json)?\s*([\s\S]*?)```/);if(fm)raw=fm[1].trim();
     const js=raw.indexOf('{'),je=raw.lastIndexOf('}');
@@ -726,8 +780,9 @@ async function analyze(){
     userCredits=Math.max(0,userCredits-1);
     await sb.from('profiles').update({credits:userCredits}).eq('id',currentUser.id);
     updateCreditUI();
-    await sb.from('analyses').insert({user_id:currentUser.id,space:selectedSpace,area:areaText,budget:selectedBudget,result:result});
-    renderResults(result,lastImageSrc);
+    const{data:insertData}=await sb.from('analyses').insert({user_id:currentUser.id,space:selectedSpace,area:areaText,budget:selectedBudget,result:result}).select('id').single();
+    lastAnalysisId=insertData?.id||null;
+    renderResults(result,lastImageSrc,lastAnalysisId);
   }catch(e){
     clearInterval(iv);ls.style.display='none';
     document.getElementById('emptyState').style.display='flex';
@@ -736,7 +791,8 @@ async function analyze(){
   }
 }
 let activePinId=null;
-function renderResults(d,imgSrc){
+let lastAnalysisId=null;
+function renderResults(d,imgSrc,analysisId){
   document.getElementById('loadingState').style.display='none';
   document.getElementById('analyzeBtn').disabled=false;
   const matPins=(d.pins||[]).filter(p=>p.type==='material');
@@ -749,7 +805,8 @@ function renderResults(d,imgSrc){
   const stepH=(d.steps||[]).map((s,i)=>{
     const ch=(s.cautions||[]).map(c=>'<div class="tip-item tip-caution"><span class="tip-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span><strong>주의:</strong> '+c+'</span></div>').join('');
     const th=(s.tips||[]).map(t=>'<div class="tip-item tip-tip"><span class="tip-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg></span><span><strong>팁:</strong> '+t+'</span></div>').join('');
-    return '<div class="step"><div class="step-top"><div class="step-n">'+String(i+1).padStart(2,'0')+'</div><div><div class="step-title">'+s.title+'</div>'+(s.time?'<span class="step-time">'+s.time+'</span>':'')+'</div></div><div class="step-desc">'+s.desc+'</div>'+((ch||th)?'<div class="step-tips">'+ch+th+'</div>':'')+'</div>';
+    const svgBlock=s.svg?'<div class="step-illustration">'+s.svg+'</div>':'';
+    return '<div class="step">'+svgBlock+'<div class="step-top"><div class="step-n">'+String(i+1).padStart(2,'0')+'</div><div><div class="step-title">'+s.title+'</div>'+(s.time?'<span class="step-time">'+s.time+'</span>':'')+'</div></div><div class="step-desc">'+s.desc+'</div>'+((ch||th)?'<div class="step-tips">'+ch+th+'</div>':'')+'</div>';
   }).join('');
   const ytH=(d.youtube||[]).map(v=>'<a class="yt-card" href="https://www.youtube.com/results?search_query='+encodeURIComponent(v.searchQuery)+'" target="_blank" rel="noopener"><div class="yt-thumb"><img src="https://img.youtube.com/vi/'+v.videoId+'/mqdefault.jpg" alt="'+v.title+'" onerror="this.style.display=\'none\'"><div class="yt-play-btn"><div class="yt-btn-circle"><svg width="10" height="12" viewBox="0 0 10 12" fill="white"><path d="M1 1l8 5-8 5V1z"/></svg></div></div></div><div class="yt-info"><div class="yt-title">'+v.title+'</div><div class="yt-ch">'+v.channel+'</div></div></a>').join('');
   const pinsH=(d.pins||[]).map(p=>'<div class="img-pin" style="left:'+p.x+'%;top:'+p.y+'%;" onclick="togglePin('+p.id+')"><div class="pin-dot">'+p.id+'</div><div class="pin-tooltip">'+p.name+'</div></div>').join('');
@@ -782,11 +839,11 @@ function togglePin(id){
   panel.classList.add('active');
   panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
-function shareResult(){
-  if(!lastResult)return;
-  const text='뚝딱 인테리어 분석 결과\n\n'+lastResult.title+'\n'+lastResult.subtitle+'\n\nmatl.vercel.app';
-  if(navigator.share)navigator.share({title:'뚝딱 분석 결과',text});
-  else navigator.clipboard.writeText(text).then(()=>alert('클립보드에 복사되었습니다.'));
+function shareResult(id){
+  const shareId=id||lastAnalysisId;
+  const url=shareId?(window.location.origin+window.location.pathname+'?report='+shareId):window.location.href;
+  if(navigator.share)navigator.share({title:'뚝딱 분석 결과 — '+(lastResult?.title||''),url});
+  else navigator.clipboard.writeText(url).then(()=>alert('링크가 복사되었습니다.\n'+url));
 }
 async function renderMypage(){
   if(!currentUser)return;
@@ -799,10 +856,22 @@ async function renderMypage(){
   if(!data||data.length===0){hist.innerHTML='<div class="hist-empty"><p>아직 분석 기록이 없어요.</p></div>';return;}
   hist.innerHTML=data.map(a=>'<div class="hist-item"><div><div class="hist-title">'+(a.result?.title||'분석 결과')+'</div><div class="hist-meta">'+a.space+' · '+a.area+' · '+new Date(a.created_at).toLocaleDateString('ko-KR')+'</div></div><button class="hist-btn" onclick="shareHistItem(\''+encodeURIComponent(a.result?.title||'')+'\',\''+encodeURIComponent(a.result?.subtitle||'')+'\')">공유</button></div>').join('');
 }
-function shareHistItem(t,s){
-  const text='뚝딱 인테리어 분석\n\n'+decodeURIComponent(t)+'\n'+decodeURIComponent(s)+'\n\nmatl.vercel.app';
-  if(navigator.share)navigator.share({title:'뚝딱 분석 결과',text});
-  else navigator.clipboard.writeText(text).then(()=>alert('복사되었습니다.'));
+function shareHistItem(id){
+  const url=window.location.origin+window.location.pathname+'?report='+id;
+  if(navigator.share)navigator.share({title:'뚝딱 분석 결과',url});
+  else navigator.clipboard.writeText(url).then(()=>alert('링크가 복사되었습니다.'));
+}
+async function viewHistReport(id){
+  const{data}=await sb.from('analyses').select('*').eq('id',id).single();
+  if(!data)return;
+  showPage('main');
+  lastResult=data.result;lastAnalysisId=id;
+  // 이미지는 저장 안 돼서 placeholder
+  setTimeout(()=>{
+    document.getElementById('emptyState').style.display='none';
+    renderResults(data.result,'',id);
+    document.querySelector('.right').scrollIntoView({behavior:'smooth',block:'start'});
+  },100);
 }
 async function loadApiKey(){
   try{
