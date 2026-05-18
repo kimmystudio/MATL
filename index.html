@@ -586,15 +586,15 @@ const ADMIN_EMAIL='ceo@concretepie.com';
 let selectedSpace='욕실',selectedBudget='30~100만원';
 let imageBase64=null,imageMediaType='image/jpeg',lastImageSrc=null;
 let currentUser=null,userCredits=0,lastResult=null;
-let adminApiKey=localStorage.getItem('tuktak_api_key')||'';
+let adminApiKey='';
 const LOADS=['이미지 분석 중...','자재·가구 구분 중...','최저가 검색 중...','가이드 생성 중...'];
 
-sb.auth.getSession().then(({data:{session}})=>{if(session)handleSession(session);});
+sb.auth.getSession().then(({data:{session}})=>{if(session)handleSession(session);});loadApiKey();
 sb.auth.onAuthStateChange((_,session)=>{if(session)handleSession(session);else{currentUser=null;updateUI();}});
 
 function handleSession(s){
   currentUser={id:s.user.id,email:s.user.email,name:s.user.user_metadata?.name||s.user.email.split('@')[0]};
-  loadCredits();updateUI();
+  loadCredits();loadApiKey();updateUI();
 }
 async function loadCredits(){
   if(!currentUser)return;
@@ -804,6 +804,12 @@ function shareHistItem(t,s){
   if(navigator.share)navigator.share({title:'뚝딱 분석 결과',text});
   else navigator.clipboard.writeText(text).then(()=>alert('복사되었습니다.'));
 }
+async function loadApiKey(){
+  try{
+    const{data}=await sb.from('app_settings').select('value').eq('key','gemini_api_key').single();
+    if(data?.value) adminApiKey=data.value;
+  }catch(e){}
+}
 async function loadAdmin(){
   const{count:uc}=await sb.from('profiles').select('*',{count:'exact',head:true});
   const{count:ac}=await sb.from('analyses').select('*',{count:'exact',head:true});
@@ -819,9 +825,14 @@ async function loadAdmin(){
   if(!data||data.length===0){ul.innerHTML='<div style="font-size:13px;color:var(--muted);padding:16px 0;">가입자 없음</div>';return;}
   ul.innerHTML=data.map(u=>'<div class="user-row"><span>'+(u.name||'—')+'</span><span style="font-size:12px;color:var(--muted);">'+new Date(u.created_at).toLocaleDateString('ko-KR')+'</span></div>').join('');
 }
-function saveApiKey(){
+async function saveApiKey(){
   const key=document.getElementById('adminApiKey').value.trim();
-  if(!key)return;adminApiKey=key;localStorage.setItem('tuktak_api_key',key);alert('API 키가 저장되었습니다.');
+  if(!key)return;
+  const btn=event.target;btn.textContent='저장 중...';btn.disabled=true;
+  const{error}=await sb.from('app_settings').upsert({key:'gemini_api_key',value:key},{onConflict:'key'});
+  btn.textContent='저장';btn.disabled=false;
+  if(error){alert('저장 실패: '+error.message);return;}
+  adminApiKey=key;alert('API 키가 저장되었습니다.');
 }
 function toggleFaq(el){el.classList.toggle('open');}
 function initAnimations(){
